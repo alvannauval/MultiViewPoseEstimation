@@ -496,5 +496,33 @@ if __name__ == "__main__":
             circle_path.append([tx, ty, tz, zyz[0], zyz[1], zyz[2]])
             last_zyz = zyz
 
-        # movel(circle_path[0], v=100, a=200)
+        # movel(circle_path[0], v=50, a=100)
         # print("Scanning Start")
+
+
+    movel(circle_path[0], v=50, a=100)
+    print("Scanning Start")
+
+    for count, wp in enumerate(circle_path, 1):
+        movel(wp, v=50, a=100)
+        time.sleep(0.3)
+        start_time = time.time()
+        # while time.time() - start_time < 0.5:
+        #     rclpy.spin_once(transformer_node, timeout_sec=0.01)
+
+        tf_base_to_cam = get_current_camera_tf(transformer_node)
+        if tf_base_to_cam is not None:
+            # print(tf_base_to_cam)
+
+            Multiview_pcd_data(pipeline, align, tf_base_to_cam, initial_POS, pcd_data_dir, count, duration=1.0)
+            obj_pos_base = np.array(initial_POS)
+            T_base_object = np.eye(4)
+            T_base_object[:3, 3] = obj_pos_base
+            T_object_camera = np.linalg.inv(T_base_object) @ tf_base_to_cam
+            camera_pos_object = T_object_camera[:3, 3]
+            print("camera pose object: {}".format(camera_pos_object))
+            Object_to_Camera.append(camera_pos_object)        
+        else:
+            print(f"Warning: Failed to get TF for Viewpoint {count}")
+        time.sleep(0.3)
+        print(f"Scanned {count} Viewpoints")
