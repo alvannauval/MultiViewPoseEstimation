@@ -205,49 +205,6 @@ def capture_scan_view(pipeline, align, T_base_camera, index, save_dir="PCD_Data"
     o3d.io.write_point_cloud(pcd_file_path, pcd)
     print(f"Successfully saved merged {len(np.asarray(pcd.points))} points to {pcd_file_path}")
 
-def get_current_posx_from_topic():
-    """Equivalent to rostopic echo -n 1 /dsr01m1013/state/current_posx"""
-    try:
-        # 1. Wait for a single message from the state topic
-        # timeout=2.0 prevents the script from hanging forever if the robot is off
-        data = rospy.wait_for_message('/dsr01m1013/state', RobotState, timeout=2.0)
-        
-        # 2. Access the current_posx field [x, y, z, a, b, c]
-        posx = list(data.current_posx)
-        
-        return posx
-    except rospy.ROSException as e:
-        rospy.logerr(f"Could not get robot state: {e}")
-        return None
-
-
-def transform_pose_with_offset(target_pose, offset_matrix):
-    """
-    Transforms a 6-DOF pose [x, y, z, a, b, c] by a 4x4 offset matrix.
-    Useful for converting a 'Camera Pose' to a 'Robot Wrist Pose'.
-    
-    :param target_pose: List or array [x, y, z, a, b, c] (units: mm and degrees)
-    :param offset_matrix: 4x4 numpy array (The transformation from Camera to Link6)
-    :return: List [x, y, z, a, b, c] transformed
-    """
-    from scipy.spatial.transform import Rotation as R
-    import numpy as np
-
-    # 1. Convert the input pose to a 4x4 Matrix
-    x, y, z, a, b, c = target_pose
-    T_base_to_target = np.eye(4)
-    T_base_to_target[:3, :3] = R.from_euler('zyz', [a, b, c], degrees=True).as_matrix()
-    T_base_to_target[:3, 3] = [x, y, z]
-
-    # 2. Apply the offset (Base->Target @ Target->NewTarget)
-    T_new = T_base_to_target @ offset_matrix
-
-    # 3. Extract position and Euler angles
-    new_pos = T_new[:3, 3]
-    new_rot = R.from_matrix(T_new[:3, :3]).as_euler('zyz', degrees=True)
-
-    return [new_pos[0], new_pos[1], new_pos[2], new_rot[0], new_rot[1], new_rot[2]]
-
 
 def home_robot():
     """Moves the robot to the predefined home joint position."""
@@ -311,61 +268,6 @@ if __name__ == "__main__":
     T_link6_to_cam = get_tf_matrix(tf_buffer, source='link6', target='realsense_RGBframe')
     T_cam_to_link6 = np.linalg.inv(T_link6_to_cam)
 
-    # OLD
-    # for i in range(VIEWPOINTS):
-    #     # Calculate circular position
-    #     angle = math.radians((360.0 / VIEWPOINTS) * i)
-    #     tx = obj_base_pose[0] + SCAN_RADIUS * math.cos(angle)
-    #     ty = obj_base_pose[1] + SCAN_RADIUS * math.sin(angle)
-    #     tz = obj_base_pose[2] + SCAN_HEIGHT
-        
-    #     # Calculate rotation so camera faces the object
-    #     zyz = calculate_look_at_zyz([tx, ty, tz], obj_base_pose[:3])
-
-    #     # Combine into pose [x, y, z, a, b, c]
-    #     target_pose = [tx, ty, tz, zyz[0], zyz[1], zyz[2]]
-
-    #     # if you want to always look downward
-    #     target_pose = [tx, ty, tz, 3.4242515563964844, -179.9999542236328, 3.4242515563964844]
-
-    #     T_base_obj = translation_matrix(tx, ty, tz)
-    #     T_base_link6_new = T_base_obj @ T_cam_link6
-    #     final_xyz = list(T_base_link6_new[:3, 3])
-    #     wrist_pose = [final_xyz[0], final_xyz[1], final_xyz[2], target_pose[3], target_pose[4], target_pose[5]]
-
-
-    #     camera_pose.append(target_pose)
-    #     move_path.append(wrist_pose)
-
-
-    # OLD 2
-    # for i in range(VIEWPOINTS):
-    #     # Calculate circular position
-    #     angle = math.radians((360.0 / VIEWPOINTS) * i)
-    #     tx = obj_base_pose[0] + SCAN_RADIUS * math.cos(angle)
-    #     ty = obj_base_pose[1] + SCAN_RADIUS * math.sin(angle)
-    #     tz = obj_base_pose[2] + SCAN_HEIGHT
-        
-    #     # This matrix describes the camera's orientation in the Base frame
-    #     zyz = calculate_look_at_zyz([tx, ty, tz], obj_base_pose[:3])
-    #     target_pose = [tx, ty, tz, zyz[0], zyz[1], zyz[2]]
-
-    #     T_base_cam = np.eye(4)
-    #     # Convert those ZYZ angles back to a matrix temporarily
-    #     T_base_cam[:3, :3] = R.from_euler('zyz', zyz, degrees=True).as_matrix()
-    #     T_base_cam[:3, 3] = [tx, ty, tz]
-
-    #     T_base_link6 = T_base_cam @ T_cam_to_link6
-    #     final_xyz = T_base_link6[:3, 3]
-    #     final_zyz = R.from_matrix(T_base_link6[:3, :3]).as_euler('zyz', degrees=True)
-
-    #     wrist_pose = [final_xyz[0], final_xyz[1], final_xyz[2], 
-    #                 final_zyz[0], final_zyz[1], final_zyz[2]]
-
-    #     camera_pose.append(target_pose)
-    #     move_path.append(wrist_pose)
-
-
     for i in range(VIEWPOINTS):
         # Calculate circular position
         angle = math.radians((360.0 / VIEWPOINTS) * i)
@@ -400,13 +302,6 @@ if __name__ == "__main__":
 
     # Return Home
     home_robot()
-
-
-
-# movel([559.0001220703125, 34.499996185302734, 651.4995727539062, 3.4242515563964844, -179.9999542236328, 3.4242515563964844], v=25, a=150)
-
-# >>> obj_base_pose
-# [608.4677005161466, 73.05673925361697, 3.3497937876425112, 0.0, 86.90509, 0.0]
 
 
 def move_to_camera_above_object_transformation():
@@ -444,7 +339,7 @@ def move_to_camera_above_object_transformation():
 
 
 
-
+# TEST FUNCTIONS
 def move_to_camera_above_object_manual():
     global center_pose_manual, center_pose_transformed_manual, T_init_manual
     # known yolo position
@@ -482,7 +377,6 @@ if(1==4):
     for i in range(8):
         movel(move_path[i], v=50, a=150)
         time.sleep(0.1)
-
 
 
 ### TODO: is the transformation correct?
