@@ -80,7 +80,7 @@ def publish_tf():
         ft_intel_stamped.header.stamp = rospy.Time.now()
         ft_intel_stamped.header.frame_id = "ft_sensor_frame"
         ft_intel_stamped.child_frame_id = "realsense_frame"
-        ft_intel_stamped.transform.translation.x = 0.0115
+        ft_intel_stamped.transform.translation.x = 0.0 # +0.0115
         ft_intel_stamped.transform.translation.y = -0.085150
         ft_intel_stamped.transform.translation.z = 0.085350
 
@@ -96,7 +96,7 @@ def publish_tf():
         intel_depth_rgb.header.stamp = rospy.Time.now()
         intel_depth_rgb.header.frame_id = "realsense_frame"
         intel_depth_rgb.child_frame_id = "realsense_RGBframe"
-        intel_depth_rgb.transform.translation.x = -0.044
+        intel_depth_rgb.transform.translation.x = 0.0 # -0.044
         intel_depth_rgb.transform.translation.y = 0.0
         intel_depth_rgb.transform.translation.z = 0.0
         intel_depth_rgb.transform.rotation.x = 0.0
