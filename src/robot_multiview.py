@@ -204,12 +204,6 @@ def capture_scan_view(pipeline, align, T_base_camera, index, save_dir="PCD_Data"
     print(f"Saved View {index}: {len(pcd.points)} points. Visualization: {viz_path}")
 
 
-def home_robot():
-    """Moves the robot to the predefined home joint position."""
-    print("Moving to Home position...")
-    movej([0, 0, 90, 0, 90, 0], v=15, a=30) 
-
-
 def pose_to_matrix(pose):
     """
     Converts [x, y, z, roll, pitch, yaw] in degrees to a 4x4 transformation matrix.
@@ -230,41 +224,29 @@ def pose_to_matrix(pose):
     return T
 
 
-def matrix_to_pose(matrix):
+def matrix_to_pose(matrix, zyz=False):
     """
-    Converts a 4x4 homogeneous transform matrix into
-    [x, y, z, roll, pitch, yaw] in degrees.
-    Rotation is extracted using intrinsic ZYX order
-    (R = Rz(yaw) * Ry(pitch) * Rx(roll)),
-    which matches the standard ROS RPY convention.
+    Converts a 4x4 homogeneous transform matrix into a 6D pose list.
+    
+    Args:
+        matrix: 4x4 numpy array.
+        zyz (bool): If True, returns [x, y, z, alpha, beta, gamma] using ZYZ order.
+                   If False, returns [x, y, z, roll, pitch, yaw] using ZYX order.
     """
-    # 1. Extract the translation (x, y, z)
+    # 1. Extract translation and rotation matrix
     x, y, z = matrix[:3, 3]
-    # 2. Extract the rotation matrix (top-left 3x3 block)
     rot_matrix = matrix[:3, :3]
-    # 3. Convert rotation matrix to intrinsic ZYX Euler angles (degrees)
-    # SciPy returns [yaw, pitch, roll] for 'zyx'
-    zyx = R.from_matrix(rot_matrix).as_euler('zyx', degrees=True)
-    # Reorder to [roll, pitch, yaw]
-    return [x, y, z, zyx[2], zyx[1], zyx[0]]
-
-
-def matrix_to_pose_zyz(matrix):
-    """
-    Converts a 4x4 homogeneous transform matrix into
-    [x, y, z, alpha, beta, gamma] in degrees.
-
-    Rotation is extracted using intrinsic ZYZ Euler order:
-        R = Rz(alpha) * Ry(beta) * Rz(gamma)
-    """
-    # 1. translation
-    x, y, z = matrix[:3, 3]
-    # 2. rotation matrix
-    rot_matrix = matrix[:3, :3]
-    # 3. ZYZ Euler extraction
-    zyz = R.from_matrix(rot_matrix).as_euler('ZYZ', degrees=True)
-    alpha, beta, gamma = zyz
-    return [x, y, z, alpha, beta, gamma]
+    
+    if zyz:
+        # Intrinsic ZYZ: R = Rz(alpha) * Ry(beta) * Rz(gamma)
+        alpha, beta, gamma = R.from_matrix(rot_matrix).as_euler('ZYZ', degrees=True)
+        return [x, y, z, alpha, beta, gamma]
+    else:
+        # Intrinsic ZYX: R = Rz(yaw) * Ry(pitch) * Rx(roll)
+        # SciPy returns [yaw, pitch, roll] for 'zyx'
+        zyx = R.from_matrix(rot_matrix).as_euler('zyx', degrees=True)
+        # Reorder to [x, y, z, roll, pitch, yaw]
+        return [x, y, z, zyx[2], zyx[1], zyx[0]]
 
 
 def get_tf_matrix(tf_buffer, target, source):
@@ -302,31 +284,6 @@ def get_tf_matrix(tf_buffer, target, source):
     tf_matrix[:3, 3] = translation_vector
     
     return tf_matrix
-
-
-def capture():
-    T_current = get_tf_matrix(tf_buffer, target='base_0', source='realsense_RGBframe')
-    time.sleep(1)
-    capture_scan_view(pipeline, align, T_current, 0, save_dir=pcd_save_dir, duration=1.0)
-
-
-def transform_to_cam_def():
-    "reference set camera to top of object"
-    "Input are x, y, z, r, p, y"
-    "output are x, y, z, z, y, z"
-
-    # T_cam2ob = [obj_cam_pos[0], obj_cam_pos[1], obj_cam_pos[2], 0.0, 180.0, 90.0] #T_cam2ob, xyzrpy def look inside
-    t_cam2ob = [obj_cam_pos[0], obj_cam_pos[1], obj_cam_pos[2], 0.0, 180.0, -90.0] #T_cam2ob, xyzrpy def look outside
-    
-    t_base2ob = T_base2cam @ pose_to_matrix(t_cam2ob)
-    t_ob2cam_goal = [[0, 1, 0, 0],
-                    [1, 0, 0, 0],
-                    [0, 0, -1, SCAN_HEIGHT],
-                    [0, 0, 0, 1]]
-    t_base2link = t_base2ob @ t_ob2cam_goal @ np.linalg.inv(T_link2cam)
-    target_link6 = matrix_to_pose_zyz(t_base2link)
-
-    return target_link6
 
 
 def transform_to_cam(t_base2goal, t_link2cam):
@@ -373,6 +330,18 @@ def rpy_to_zyz(rpy_angles, degrees=True):
     return zyz
 
 
+def home_robot():
+    """Moves the robot to the predefined home joint position."""
+    print("Moving to Home position...")
+    movej([0, 0, 90, 0, 90, 0], v=15, a=30) 
+
+
+def capture():
+    T_current = get_tf_matrix(tf_buffer, target='base_0', source='realsense_RGBframe')
+    time.sleep(1)
+    capture_scan_view(pipeline, align, T_current, 0, save_dir=pcd_save_dir, duration=1.0)
+
+
 
 if __name__ == "__main__":
     rospy.init_node('unified_grasp_scan')
@@ -400,8 +369,8 @@ if __name__ == "__main__":
 
 
     # Scanning Parameters
-    SCAN_HEIGHT = 300         # m above the object
-    VIEWPOINTS = 16              # Number of scans
+    SCAN_HEIGHT = 300           # m above the object
+    VIEWPOINTS = 16             # Number of scans
     DESIRED_ANGLE_DEG = 65.0    # degrees
     pcd_save_dir = "PCD_Data"   
     
@@ -412,7 +381,7 @@ if __name__ == "__main__":
     print(f"Scanning from viewpoint no 1")
     capture_scan_view(pipeline, align, T_init, 0, save_dir=pcd_save_dir, duration=1.0)
 
-    link6_path = []      # target based on link6
+    link6_path = []     # target based on link6
     camera_path = []    # target based on camera
 
     T_base2cam = get_tf_matrix(tf_buffer, source='realsense_RGBframe', target='base_0')
@@ -452,64 +421,7 @@ if __name__ == "__main__":
         home_robot()
 
 
-
-# # testing taking from certain angle based on generated
-# yolo = obj_base_pose.copy()
-
-# obj_base = obj_base_pose.copy()
-# obj_base[2] -= 8
-
-# cam_pose_obj_origin = [225.11641550749576, -168.0, 352.99976897167465, 0.0, 180.0, -90]
-
-# cam_pose_base = [0, 0, 0, 0, 0, 0]
-# cam_pose_base[0] = obj_base[0]+cam_pose_obj_origin[0]
-# cam_pose_base[1] = obj_base[1]-cam_pose_obj_origin[1]
-# cam_pose_base[2] = obj_base[2]+cam_pose_obj_origin[2]
-# cam_pose_base[3] = 179.9766606743857
-# cam_pose_base[4] = -0.011717987901194127
-# cam_pose_base[5] = 92.95075128118827
-
-# link_pose_base = transform_to_cam(pose_to_matrix(cam_pose_base), T_link2cam)
-
-# #### sampe sini doank rotasinya aneh, jadi manualin
-# # ngadep bawah
-# link_pose_base[3] = 9.459908485412598
-# link_pose_base[4] = 179.99188232421875
-# link_pose_base[5] = 9.467753410339355
-
-# zyz_angle = rpy_to_zyz([180+27, -35, 180+90]) #ig this is it
-# zyz_angle = rpy_to_zyz([180+27, -35, 180]) #ig this is it tapi diamankan
-
-
-# link_pose_base[3] = zyz_angle[0]
-# link_pose_base[4] = zyz_angle[1]
-# link_pose_base[5] = zyz_angle[2]
-
-# #### sampe sini doank kek muter
-
-# zyz_angle = rpy_to_zyz([153.25979406528558, -34.99998269794345, 180.0]) # default reference
-# zyz_angle = rpy_to_zyz([180, 0.01, 180]) # home angle in rpy
-# zyz_angle = rpy_to_zyz([180+15, 0.01, 180]) #  roll, muter
-# zyz_angle = rpy_to_zyz([180, 15, 180]) #  pitch, dangak, ke arah arurang
-# zyz_angle = rpy_to_zyz([180, 0.01, 180+15]) # muter di tempat itu sendiri
-
-# zyz_angle = rpy_to_zyz([180, -55, 180-35]) # angle testing, target 0, -63, -35
-# zyz_angle = rpy_to_zyz([180, 0, 180-35]) 
-
-
-
-# only for testing random
-# home_pose = [559.0001220703125, 34.499996185302734, 651.4995727539062, 3.4242515563964844, -179.9999542236328-15, 3.4242515563964844]
-# test_pose = [559.0001220703125, 34.499996185302734, 651.4995727539062, zyz_angle[0], zyz_angle[1], zyz_angle[2]]
-
-
-# rpy_angle = zyz_to_rpy([178.1530303955078, -179.9999237060547, 178.1530303955078]) # home angle in zyz
-# # array([       -180,  7.6254e-05,        -180])
-
-
-
-
-# # test pergerakan
+# # Test objet-camera-base transformation logic
 # T_cam2ob = [obj_cam_pos[0], obj_cam_pos[1], obj_cam_pos[2], 0.0, 180.0, -90.0+obb_angle] #T_cam2ob, xyzrpy def look outside
 # T_base2ob = T_base2cam @ pose_to_matrix(T_cam2ob)
 # T_ob2cam_goal = [[0, 1, 0, 0],
@@ -518,4 +430,4 @@ if __name__ == "__main__":
 #                 [0, 0, 0, 1]]
 # T_base2goal = T_base2ob @ T_ob2cam_goal
 # important_1 = transform_to_cam(T_base2goal, T_link2cam)
-# # end of test pergerakan
+# # end of test
