@@ -78,7 +78,7 @@ def get_yolo_detection(pipeline, align, model, intrinsics, depth_scale):
             print("Failed to align frames.")
         
         results = model(color_img, conf=0.88)
-        if results[0].obb is not None:
+        if results[0].obb is not None and len(results[0].obb) > 0:
             # results[0].obb is sorted by confidence; index 0 is the best
             box = results[0].obb[0]
             px, py, _, _, rotation = box.xywhr.cpu().numpy()[0]
@@ -95,6 +95,9 @@ def get_yolo_detection(pipeline, align, model, intrinsics, depth_scale):
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     cv2.destroyAllWindows()
                     return [c * 1000 for c in cam_pts], np.degrees(results[0].obb[0].xywhr.cpu().numpy()[0][4])
+                
+        else:
+            print("Searching for the object")
                 
 
 def calculate_look_at_zyz(camera_pos, target_pos):
@@ -237,7 +240,7 @@ def matrix_to_pose(matrix, zyz=False):
     x, y, z = matrix[:3, 3]
     rot_matrix = matrix[:3, :3]
     
-    if zyz:
+    if isinstance(zyz, bool) and zyz:
         # Intrinsic ZYZ: R = Rz(alpha) * Ry(beta) * Rz(gamma)
         alpha, beta, gamma = R.from_matrix(rot_matrix).as_euler('ZYZ', degrees=True)
         return [x, y, z, alpha, beta, gamma]
@@ -298,7 +301,7 @@ def transform_to_cam(t_base2goal, t_link2cam):
     t_base2link = t_base2goal @ np.linalg.inv(t_link2cam)
     
     # 2. Convert directly to ZYZ for the Doosan Robot
-    target_link6_zyz = matrix_to_pose_zyz(t_base2link)
+    target_link6_zyz = matrix_to_pose(t_base2link, zyz==True)
 
     return target_link6_zyz
 
