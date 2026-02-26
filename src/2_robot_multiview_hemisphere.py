@@ -425,12 +425,12 @@ if __name__ == "__main__":
 
 
 # # Test objet-camera-base transformation logic
-# T_cam2ob = [obj_cam_pos[0], obj_cam_pos[1], obj_cam_pos[2], 0.0, 180.0, -90.0+obb_angle] #T_cam2ob, xyzrpy def look outside
+# T_cam2ob = [obj_cam_pos[0], obj_cam_pos[1], obj_cam_pos[2], 0.0, 180.0, obb_angle] #T_cam2ob, xyzrpy def look outside
 # T_base2ob = T_base2cam @ pose_to_matrix(T_cam2ob)
-# T_ob2cam_goal = [[0, 1, 0, 0],
-#                 [1, 0, 0, 0],
-#                 [0, 0, -1, SCAN_HEIGHT],
-#                 [0, 0, 0, 1]]
+# T_ob2cam_goal = [[-1, 0, 0, 0],
+#                  [0, 1, 0, 0],
+#                  [0, 0, -1, SCAN_HEIGHT],
+#                  [0, 0, 0, 1]]
 # T_base2goal = T_base2ob @ T_ob2cam_goal
-# important_1 = transform_to_cam(T_base2goal, T_link2cam)
+# matrix_to_pose(T_base2goal, zyz=True)
 # # end of test
