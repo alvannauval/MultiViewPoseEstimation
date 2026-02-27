@@ -114,7 +114,7 @@ def calculate_look_at_zyz(camera_pos, target_pos):
     return R.from_matrix(rot_matrix).as_euler('zyz', degrees=True)
 
     
-def capture_scan_view(pipeline, align, T_base_camera, index, save_dir="PCD_Data", duration=1.0):
+def capture_scan_view(pipeline, align, T_base_camera, index, save_dir="pcd_data", duration=1.0):
     """
     Captures frames, merges PCD, and saves a side-by-side RGB+Depth visualization.
     Normalization ensures the depth image isn't just a solid blue block.
@@ -368,14 +368,14 @@ if __name__ == "__main__":
     T_init = get_tf_matrix(tf_buffer, target='base_0', source='realsense_RGBframe')
     obj_base_pos = (T_init @ np.append(obj_cam_pos, 1))[:3]
     obj_base_pose = [obj_base_pos[0], obj_base_pos[1], obj_base_pos[2], 0.0, obb_angle, 0.0]
-    np.save("PCD_Data/initial_obj_pose.npy", obj_base_pose)
+    np.save("pcd_data/initial_obj_pose.npy", obj_base_pose)
 
 
     # Scanning Parameters
     SCAN_HEIGHT = 300           # m above the object
     VIEWPOINTS = 16             # Number of scans
     DESIRED_ANGLE_DEG = 65.0    # degrees
-    pcd_save_dir = "PCD_Data"   
+    pcd_save_dir = "pcd_data"   
     
     SCAN_RADIUS = SCAN_HEIGHT * math.tan(math.radians(90.0 - DESIRED_ANGLE_DEG)) 
 
