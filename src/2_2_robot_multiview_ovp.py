@@ -363,10 +363,10 @@ def home_robot():
     movej([0, 0, 90, 0, 90, 0], v=15, a=30) 
 
 
-def capture():
+def capture(index=0):
     T_current = get_tf_matrix(tf_buffer, target='base_0', source='realsense_RGBframe')
     time.sleep(1)
-    capture_scan_view(pipeline, align, T_current, 0, save_dir=pcd_save_dir, duration=1.0)
+    capture_scan_view(pipeline, align, T_current, index, save_dir=pcd_save_dir, duration=1.0)
 
 
 def load_viewpoint_poses(folder_path):
@@ -431,14 +431,16 @@ if __name__ == "__main__":
 
 
     T_cam2ob = [obj_cam_pos[0], obj_cam_pos[1], obj_cam_pos[2], 0.0, 180.0, obb_angle]
+    T_base2ob_yolo = T_base2cam @ pose_to_matrix(T_cam2ob)
     T_yolo2origin = np.array([[1, 0, 0,  0],
                               [0, 1, 0,  0],
                               [0, 0, 1, -8],
                               [0, 0, 0,  1]])
     
+    np.save(os.path.join(pcd_save_dir, f"T_base2ob_yolo.npy"), T_base2ob_yolo)
+
     # Single Only
     # T_goal2ob_origin = viewpoint_poses[0]
-    # T_base2ob_yolo = T_base2cam @ pose_to_matrix(T_cam2ob)
     # T_base2goal = T_base2ob_yolo @ T_yolo2origin @ T_goal2ob_origin
     # goal_pose_cam = T_base2goal @ np.linalg.inv(T_link2cam)
     # goal_pose_cam = transform_to_cam(T_base2goal, T_link2cam)
@@ -447,7 +449,6 @@ if __name__ == "__main__":
     goal_pose_cam = []
     for i in range(len(viewpoint_poses)):
         T_goal2ob_origin = viewpoint_poses[i]
-        T_base2ob_yolo = T_base2cam @ pose_to_matrix(T_cam2ob)
         T_base2goal = T_base2ob_yolo @ T_yolo2origin @ T_goal2ob_origin
         goal_pose_cam.append(transform_to_cam(T_base2goal, T_link2cam))
 
@@ -467,15 +468,15 @@ if __name__ == "__main__":
         home_robot()    
 
 
-# def move():
-#     for i in range(len(goal_pose_cam)):
-#         print(f"Moving to Viewpoint {i+1}...")
-#         movel(goal_pose_cam[i], v=100, a=200) # Doosan Move command
-#         time.sleep(1) 
-#         # Capture and merge from each viewpoint
-#         T_current = get_tf_matrix(tf_buffer, target='base_0', source='realsense_RGBframe')
-#         capture_scan_view(pipeline, align, T_current, i+1, save_dir=pcd_save_dir, duration=1.0)
-#         time.sleep(0.5)
-#     # Return Home
-#     time.sleep(1)
-#     home_robot()     
+def move():
+    for i in range(len(goal_pose_cam)):
+        print(f"Moving to Viewpoint {i}...")
+        movel(goal_pose_cam[i], v=100, a=200) # Doosan Move command
+        time.sleep(1) 
+        # Capture and merge from each viewpoint
+        T_current = get_tf_matrix(tf_buffer, target='base_0', source='realsense_RGBframe')
+        capture_scan_view(pipeline, align, T_current, i, save_dir=pcd_save_dir, duration=1.0)
+        time.sleep(0.5)
+    # Return Home
+    time.sleep(1)
+    home_robot()     
